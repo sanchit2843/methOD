@@ -93,5 +93,12 @@ if __name__ == "__main__":
     file_list = os.listdir(
         "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/KITTI/object/training/depth/"
     )
-    with Pool(4) as pool:
+
+    for i in os.listdir(
+        "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/KITTI/object/training/hha/"
+    ):
+        file_list.remove(i.replace(".png", ".png.npy"))
+
+    print(len(file_list))
+    with Pool(6) as pool:
         list(tqdm(pool.imap(process_file, file_list), total=len(file_list)))
