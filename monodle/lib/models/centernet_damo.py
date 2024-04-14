@@ -22,7 +22,7 @@ class CenterNet3DDamo(nn.Module):
 
         self.heads = {'heatmap': num_class, 'offset_2d': 2, 'size_2d' :2, 'depth': 2, 'offset_3d': 2, 'size_3d':3, 'heading': 24}
         
-        with open("/Users/sanchittanwar/Desktop/Workspace/courses/CS7643/final_project/methOD/monodle/lib/backbones/damoyolo_structure_small.txt", "r") as f:
+        with open("lib/backbones/damoyolo_structure_small.txt", "r") as f:
             structure_info = f.read()   
 
         struct_str = ''.join([x.strip() for x in structure_info])
