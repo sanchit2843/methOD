@@ -12,9 +12,9 @@ class GiraffeNeckV2(nn.Module):
         in_features=[2, 3, 4],
         in_channels=[256, 512, 1024],
         out_channels=[256, 512, 1024],
-        act='silu',
+        act="silu",
         spp=False,
-        block_name='BasicBlock',
+        block_name="BasicBlock",
         depthwise=False,
     ):
         super().__init__()
@@ -23,64 +23,72 @@ class GiraffeNeckV2(nn.Module):
         self.out_channels = out_channels
         Conv = DepthwiseConv if depthwise else ConvBNAct
 
-        self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
+        self.upsample = nn.Upsample(scale_factor=2, mode="nearest")
 
         # node x3: input x0, x1
         self.bu_conv13 = Conv(in_channels[1], in_channels[1], 3, 2, act=act)
-        self.merge_3 = CSPStage(block_name,
-                                in_channels[1] + in_channels[2],
-                                hidden_ratio,
-                                in_channels[2],
-                                round(3 * depth),
-                                act=act,
-                                spp=spp,
-                                depthwise=depthwise)
+        self.merge_3 = CSPStage(
+            block_name,
+            in_channels[1] + in_channels[2],
+            hidden_ratio,
+            in_channels[2],
+            round(3 * depth),
+            act=act,
+            spp=spp,
+            depthwise=depthwise,
+        )
 
         # node x4: input x1, x2, x3
         self.bu_conv24 = Conv(in_channels[0], in_channels[0], 3, 2, act=act)
-        self.merge_4 = CSPStage(block_name,
-                                in_channels[0] + in_channels[1] +
-                                in_channels[2],
-                                hidden_ratio,
-                                in_channels[1],
-                                round(3 * depth),
-                                act=act,
-                                spp=spp,
-                                depthwise=depthwise)
+        self.merge_4 = CSPStage(
+            block_name,
+            in_channels[0] + in_channels[1] + in_channels[2],
+            hidden_ratio,
+            in_channels[1],
+            round(3 * depth),
+            act=act,
+            spp=spp,
+            depthwise=depthwise,
+        )
 
         # node x5: input x2, x4
-        self.merge_5 = CSPStage(block_name,
-                                in_channels[1] + in_channels[0],
-                                hidden_ratio,
-                                out_channels[0],
-                                round(3 * depth),
-                                act=act,
-                                spp=spp,
-                                depthwise=depthwise)
+        self.merge_5 = CSPStage(
+            block_name,
+            in_channels[1] + in_channels[0],
+            hidden_ratio,
+            out_channels[0],
+            round(3 * depth),
+            act=act,
+            spp=spp,
+            depthwise=depthwise,
+        )
 
         # node x7: input x4, x5
         self.bu_conv57 = Conv(out_channels[0], out_channels[0], 3, 2, act=act)
-        self.merge_7 = CSPStage(block_name,
-                                out_channels[0] + in_channels[1],
-                                hidden_ratio,
-                                out_channels[1],
-                                round(3 * depth),
-                                act=act,
-                                spp=spp,
-                                depthwise=depthwise)
+        self.merge_7 = CSPStage(
+            block_name,
+            out_channels[0] + in_channels[1],
+            hidden_ratio,
+            out_channels[1],
+            round(3 * depth),
+            act=act,
+            spp=spp,
+            depthwise=depthwise,
+        )
 
         # node x6: input x3, x4, x7
         self.bu_conv46 = Conv(in_channels[1], in_channels[1], 3, 2, act=act)
         self.bu_conv76 = Conv(out_channels[1], out_channels[1], 3, 2, act=act)
-        self.merge_6 = CSPStage(block_name,
-                                in_channels[1] + out_channels[1] +
-                                in_channels[2],
-                                hidden_ratio,
-                                out_channels[2],
-                                round(3 * depth),
-                                act=act,
-                                spp=spp,
-                                depthwise=depthwise)
+        self.merge_6 = CSPStage(
+            block_name,
+            in_channels[1] + out_channels[1] + in_channels[2],
+            hidden_ratio,
+            out_channels[2],
+            round(3 * depth),
+            act=act,
+            spp=spp,
+            depthwise=depthwise,
+        )
 
     def init_weights(self):
         pass
@@ -126,10 +134,12 @@ class GiraffeNeckV2(nn.Module):
         x76 = self.bu_conv76(x7)
         x6 = torch.cat([x3, x46, x76], 1)
         x6 = self.merge_6(x6)
-        ## 
+        ##
         x7 = self.upsample(x7)
         x6 = self.upsample(x6)
         x6 = self.upsample(x6)
         merged = torch.cat([x5, x7, x6], 1)
+        merged = self.upsample(merged)
+
         outputs = (x5, x7, x6)
         return outputs, merged

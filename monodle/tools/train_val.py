@@ -28,6 +28,7 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+import torch
 
 
 def main():
@@ -42,6 +43,22 @@ def main():
 
     # build model
     model = build_model(cfg["model"])
+    pretrained_weights = torch.load(
+        "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/methOD/monodle/checkpoints/damoyolo_nano_small.pth"
+    )["model"]
+
+    # Get the state dict of the new model
+    new_model_dict = model.state_dict()
+
+    # Filter out the keys that are present in both the pretrained weights and the new model
+    pretrained_dict = {
+        k: v for k, v in pretrained_weights.items() if k in new_model_dict
+    }
+    # Update the state dict of the new model with the filtered pretrained weights
+    new_model_dict.update(pretrained_dict)
+
+    # Load the updated state dict into the new model
+    model.load_state_dict(new_model_dict)
 
     if args.evaluate_only:
         logger.info("###################  Evaluation Only  ##################")

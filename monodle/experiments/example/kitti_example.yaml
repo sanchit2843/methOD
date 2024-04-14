@@ -15,7 +15,7 @@ dataset:
   shift: 0.1
 
 model:
-  type: 'centernet3d'
+  type: 'damoyolo'
   backbone: 'dla34'
   neck: 'DLAUp'
   num_class: 3
