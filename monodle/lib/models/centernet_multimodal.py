@@ -69,10 +69,14 @@ class CenterNet3DMulti(nn.Module):
 
             self.__setattr__(head, fc)
 
-    def forward(self, input):
-        feat = self.backbone(input)
-        feat = self.neck(feat[self.first_level :])
-        print("neck feature shape", feat.shape, input.shape)
+    def forward(self, rgb, hha):
+        feat_rgb = self.backbone_rgb(rgb)
+        feat_rgb = self.neck_rgb(feat_rgb[self.first_level :])
+        feat_hha = self.backbone_hha(hha)
+        feat_hha = self.neck_hha(feat_hha[self.first_level :])
+        feat = torch.cat([feat_rgb, feat_hha], dim=1)
+        
+        
         ret = {}
         for head in self.heads:
             ret[head] = self.__getattr__(head)(feat)
