@@ -10,6 +10,6 @@ def build_model(cfg):
     elif cfg["type"] == "damoyolo":
         return CenterNet3DDamo(num_class=cfg["num_class"])
     elif cfg["type"] == "multi":
-        return 
+        return CenterNet3DMulti(backbone=cfg["backbone"], neck=cfg["neck"], num_class=cfg["num_class"])
     else:
         raise NotImplementedError("%s model is not supported" % cfg["type"])

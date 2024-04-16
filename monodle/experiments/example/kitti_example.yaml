@@ -2,20 +2,20 @@ random_seed: 444
 
 dataset:
   type: &dataset_type 'KITTI'
-  batch_size: 4
+  batch_size: 24
   use_3d_center: True
   class_merging: False
   use_dontcare: False
   bbox2d_type: 'anno'   # 'proj' or 'anno'
   meanshape: False      # use predefined anchor or not
-  writelist: ['Car']
+  writelist: ['Car', 'Pedestrian', "Cyclist"]
   random_flip: 0.5
   random_crop: 0.5
   scale: 0.4
   shift: 0.1
 
 model:
-  type: 'damoyolo'
+  type: 'multi'
   backbone: 'dla34'
   neck: 'DLAUp'
   num_class: 3
@@ -40,7 +40,7 @@ trainer:
 tester:
   type: *dataset_type
   mode: single   # 'single' or 'all'
-  checkpoint: '/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/methOD/monodle/checkpoints/checkpoint_epoch_140.pth'  # for 'single' mode
+  checkpoint: '/home/hice1/stanwar8/scratch/KITTI_multi/methOD/monodle/checkpoints/checkpoint_epoch_140.pth'  # for 'single' mode
   checkpoints_dir: 'checkpoints'  # for 'all' model
   threshold: 0.2  # confidence filter
 
