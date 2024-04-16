@@ -47,7 +47,7 @@ class CenterNet3D(nn.Module):
             output_channels = self.heads[head]
             fc = nn.Sequential(
                 nn.Conv2d(
-                    channels[self.first_level], 256, kernel_size=3, padding=1, bias=True
+                    2*channels[self.first_level], 256, kernel_size=3, padding=1, bias=True
                 ),
                 nn.ReLU(inplace=True),
                 nn.Conv2d(
@@ -63,10 +63,14 @@ class CenterNet3D(nn.Module):
 
             self.__setattr__(head, fc)
 
-    def forward(self, input):
-        feat = self.backbone(input)
-        feat = self.neck(feat[self.first_level :])
-        print("neck feature shape", feat.shape, input.shape)
+    def forward(self, rgb, hha):
+        
+        feat_rgb = self.backbone(rgb)
+        feat_rgb = self.neck(feat_rgb[self.first_level :])
+        feat_hha = self.backbone(hha)
+        feat_hha = self.neck(feat_hha[self.first_level :])
+        feat = torch.cat([feat_rgb, feat_hha], dim=1)
+        
         ret = {}
         for head in self.heads:
             ret[head] = self.__getattr__(head)(feat)

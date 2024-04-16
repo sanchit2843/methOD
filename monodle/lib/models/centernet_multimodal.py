@@ -11,7 +11,7 @@ from lib.backbones.hourglass import get_large_hourglass_net
 # from lib.backbones.hourglass import load_pretrian_model
 
 
-class CenterNet3D(nn.Module):
+class CenterNet3DMulti(nn.Module):
     def __init__(self, backbone="dla34", neck="DLAUp", num_class=3, downsample=4):
         """
         CenterNet for monocular 3D object detection.
