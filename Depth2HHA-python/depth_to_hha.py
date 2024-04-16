@@ -100,5 +100,5 @@ if __name__ == "__main__":
         file_list.remove(i.replace(".png", ".png.npy"))
 
     print(len(file_list))
-    with Pool(8) as pool:
+    with Pool(12) as pool:
         list(tqdm(pool.imap(process_file, file_list), total=len(file_list)))

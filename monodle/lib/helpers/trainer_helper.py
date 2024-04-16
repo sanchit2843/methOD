@@ -56,7 +56,7 @@ class Trainer(object):
             )
             self.lr_scheduler.last_epoch = self.epoch - 1
 
-        self.gpu_ids = [0]  # list(map(int, cfg['gpu_ids'].split(',')))
+        self.gpu_ids = list(map(int, cfg["gpu_ids"].split(",")))
         self.model = torch.nn.DataParallel(model, device_ids=self.gpu_ids).to(
             self.device
         )
