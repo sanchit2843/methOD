@@ -51,7 +51,8 @@ class KITTI_Dataset(data.Dataset):
         self.data_dir = os.path.join(
             self.root_dir, "object", "testing" if split == "test" else "training"
         )
-        self.image_dir = os.path.join(self.data_dir, "image_2")
+        self.rgb_dir = os.path.join(self.data_dir, "image_rgb")
+        self.hha_dir = os.path.join(self.data_dir, "image_hha")
         self.depth_dir = os.path.join(self.data_dir, "depth")
         self.calib_dir = os.path.join(self.data_dir, "calib")
         self.label_dir = os.path.join(self.data_dir, "label_2")
@@ -80,8 +81,8 @@ class KITTI_Dataset(data.Dataset):
         # others
         self.downsample = 4
 
-    def get_image(self, idx):
-        img_file = os.path.join(self.image_dir, "%06d.png" % idx)
+    def get_image(self, idx, dir):
+        img_file = os.path.join(dir, "%06d.png" % idx)
         assert os.path.exists(img_file)
         return Image.open(img_file)
 
@@ -117,7 +118,8 @@ class KITTI_Dataset(data.Dataset):
         #  ============================   get inputs   ===========================
         index = int(self.idx_list[item])  # index mapping, get real data id
         # image loading
-        img = self.get_image(index)
+        img = self.get_image(index, self.rgb_dir)
+        hha = self.get_image(index, self.hha_dir)
         img_size = np.array(img.size)
         features_size = self.resolution // self.downsample  # W * H
 
@@ -129,7 +131,7 @@ class KITTI_Dataset(data.Dataset):
             if np.random.random() < self.random_flip:
                 random_flip_flag = True
                 img = img.transpose(Image.FLIP_LEFT_RIGHT)
-
+                hha = hha.transpose(Image.FLIP_LEFT_RIGHT)
             if np.random.random() < self.random_crop:
                 random_crop_flag = True
                 aug_scale = np.clip(
@@ -153,11 +155,22 @@ class KITTI_Dataset(data.Dataset):
             data=tuple(trans_inv.reshape(-1).tolist()),
             resample=Image.BILINEAR,
         )
+        
+        hha = hha.transform(
+            tuple(self.resolution.tolist()),
+            method=Image.AFFINE,
+            data=tuple(trans_inv.reshape(-1).tolist()),
+            resample=Image.BILINEAR,
+        )
+        
         # image encoding
         img = np.array(img).astype(np.float32) / 255.0
         img = (img - self.mean) / self.std
         img = img.transpose(2, 0, 1)  # C * H * W
-
+        hha = np.array(hha).astype(np.float32) / 255.0
+        hha = (hha - self.mean) / self.std
+        hha = hha.transpose(2, 0, 1)  # C * H * W
+        
         info = {
             "img_id": index,
             "img_size": img_size,
@@ -304,7 +317,7 @@ class KITTI_Dataset(data.Dataset):
             mask_3d[i] = 0 if random_crop_flag else 1
 
         # collect return data
-        inputs = img
+        inputs = (img, hha)
         targets = {
             "depth": depth,
             "size_2d": size_2d,

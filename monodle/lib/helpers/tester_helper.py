@@ -65,8 +65,11 @@ class Tester(object):
         progress_bar = tqdm.tqdm(total=len(self.dataloader), leave=True, desc='Evaluation Progress')
         for batch_idx, (inputs, _, info) in enumerate(self.dataloader):
             # load evaluation data and move data to GPU.
-            inputs = inputs.to(self.device)
-            outputs = self.model(inputs)
+            rgb, hha = inputs
+            rgb = rgb.to(self.device)
+            hha = hha.to(self.device)
+            
+            outputs = self.model(rgb, hha)
             dets = extract_dets_from_outputs(outputs=outputs, K=self.max_objs)
             dets = dets.detach().cpu().numpy()
 
