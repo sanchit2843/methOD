@@ -30,7 +30,7 @@ def build_optimizer(cfg_optimizer, model):
             lr=cfg_optimizer["lr"],
             use_madgrad=True,
             num_epochs=140,
-            num_batches_per_epoch=140,
+            num_batches_per_epoch=309,
         )
     else:
         raise NotImplementedError(
