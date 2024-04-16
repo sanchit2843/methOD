@@ -25,7 +25,13 @@ def build_optimizer(cfg_optimizer, model):
     elif cfg_optimizer["type"] == "adamw":
         optimizer = AdamW(parameters, lr=cfg_optimizer["lr"])
     elif cfg_optimizer["type"] == "ranger":
-        optimizer = Ranger21(parameters, lr=cfg_optimizer["lr"], use_madgrad=True)
+        optimizer = Ranger21(
+            parameters,
+            lr=cfg_optimizer["lr"],
+            use_madgrad=True,
+            num_epochs=140,
+            num_batches_per_epoch=140,
+        )
     else:
         raise NotImplementedError(
             "%s optimizer is not supported" % cfg_optimizer["type"]
