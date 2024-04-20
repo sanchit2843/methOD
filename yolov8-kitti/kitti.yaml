@@ -1,0 +1,13 @@
+names:
+- Car
+- Pedestrian
+- Van
+- Cyclist
+- Truck
+- Misc
+- Tram
+- Person_sitting
+- DontCare
+nc: 9
+train: /storage/ice1/7/4/pgupta395/methOD/yolov8-kitti/train
+val: /storage/ice1/7/4/pgupta395/methOD/yolov8-kitti/valid
