@@ -9,7 +9,7 @@ from lib.helpers.save_helper import get_checkpoint_state
 from lib.helpers.save_helper import load_checkpoint
 from lib.helpers.save_helper import save_checkpoint
 from lib.losses.centernet_loss import compute_centernet3d_loss
-
+    
 
 class Trainer(object):
     def __init__(
@@ -117,7 +117,8 @@ class Trainer(object):
             # train one batch
             self.optimizer.zero_grad()
             outputs = self.model(rgb, hha)
-
+            print(outputs.shape)
+            breakpoint()
             total_loss, stats_batch = compute_centernet3d_loss(outputs, targets)
             total_loss.backward()
             self.optimizer.step()
