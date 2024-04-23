@@ -17,7 +17,8 @@ from torchvision.ops import RoIAlign
 
 
 class ROIBox3DHead(nn.Module):
-    def __init__(self, in_size=256 * 7 * 7, hidden_size=512, num_bins=24):
+    def __init__(self, in_size=128 * 7 * 7, hidden_size=512, num_bins=24):
+        super().__init__()
         self.fc1 = nn.Linear(in_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.relu = nn.ReLU()
@@ -28,12 +29,12 @@ class ROIBox3DHead(nn.Module):
         ]:
             nn.init.constant_(l.bias, 0)
 
-        self.rot_conf_predictor = nn.Linear(hidden_size, num_bins)
-        self.rot_reg_predictor = nn.Linear(hidden_size, num_bins * 2)
-        nn.init.normal_(self.rot_conf_predictor.weight, std=0.001)
+        self.rot_cls_predictor = nn.Linear(hidden_size, num_bins)
+        self.rot_reg_predictor = nn.Linear(hidden_size, num_bins)
+        nn.init.normal_(self.rot_cls_predictor.weight, std=0.001)
         nn.init.normal_(self.rot_reg_predictor.weight, std=0.001)
         for l in [
-            self.rot_conf_predictor,
+            self.rot_cls_predictor,
             self.rot_reg_predictor,
         ]:
             nn.init.constant_(l.bias, 0)
@@ -50,10 +51,10 @@ class ROIBox3DHead(nn.Module):
         features = self.relu(self.fc1(features))
         features = self.relu(self.fc2(features))
         dim = self.dim_predictor(features)
-        rot_conf = self.rot_conf_predictor(features)
+        rot_cls = self.rot_cls_predictor(features)
         rot_reg = self.rot_reg_predictor(features)
         loc = self.loc_predictor(features)
-        return dim, rot_conf, rot_reg, loc
+        return dim, rot_cls, rot_reg, loc
 
 
 class CenterNet3DProposal(nn.Module):
@@ -88,7 +89,9 @@ class CenterNet3DProposal(nn.Module):
         self.neck_rgb = DLAUp(channels[self.first_level :], scales_list=scales)
         self.neck_hha = DLAUp(channels[self.first_level :], scales_list=scales)
         # feature fusion [such as DLAup, FPN]
-        self.roi_align = RoIAlign(output_size=(7, 7), spatial_scale=1.0 / downsample)
+        self.roi_align = RoIAlign(
+            output_size=(7, 7), spatial_scale=1.0 / downsample, sampling_ratio=1
+        )
 
         for head in self.heads.keys():
             output_channels = self.heads[head]
@@ -114,7 +117,17 @@ class CenterNet3DProposal(nn.Module):
         ## make copy of heads with different weights without using __setattr__
         self.head_roi_align = ROIBox3DHead()
 
-    def forward(self, rgb, hha, proposals):
+    def forward(self, rgb, hha, proposals=None):
+        """_summary_
+
+        Args:
+            rgb (_type_): _description_
+            hha (_type_): _description_
+            proposals (_type_, optional): Make sure proposals are of shape K*5 where first index is the batch index. Defaults to None.
+
+        Returns:
+            _type_: _description_
+        """
         feat_rgb = self.backbone_rgb(rgb)
         feat_rgb = self.neck_rgb(feat_rgb[self.first_level :])
         feat_hha = self.backbone_hha(hha)
@@ -123,15 +136,18 @@ class CenterNet3DProposal(nn.Module):
 
         ## TODO: Implement RoIAlign layer
         roi_align_feats = self.roi_align(feat, proposals)
-
         ret = {}
         for head in self.heads:
             a = self.__getattr__(head)(feat)
             ret[head] = a
 
-        roi_align_head = self.head_roi_align(roi_align_feats)
-        breakpoint()
-        return ret
+        if proposals is None:
+            return ret
+
+        (dim, rot_cls, rot_reg, loc) = self.head_roi_align(roi_align_feats)
+        ### return losses if training
+
+        return ret, (dim, rot_cls, rot_reg, loc)
 
     def fill_fc_weights(self, layers):
         for m in layers.modules():
@@ -145,9 +161,15 @@ if __name__ == "__main__":
     import torch
 
     net = CenterNet3DProposal(backbone="dla34")
-    print(net)
-
     input = torch.randn(4, 3, 384, 1280)
-    print(input.shape, input.dtype)
-    output = net(input)
+    proposals = torch.randn(4, 4)
+    proposals = [proposals] * 4
+    ## convert this to K*5 where first index is the batch index
+    for i in range(len(proposals)):
+        proposals[i] = torch.cat(
+            [torch.ones(proposals[i].shape[0], 1) * i, proposals[i]], dim=1
+        )
+    proposals = torch.cat(proposals, dim=0)
+    print(proposals.shape)
+    output = net(input, input, proposals)
     print(output.keys())

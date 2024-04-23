@@ -9,7 +9,8 @@ from lib.helpers.save_helper import get_checkpoint_state
 from lib.helpers.save_helper import load_checkpoint
 from lib.helpers.save_helper import save_checkpoint
 from lib.losses.centernet_loss import compute_centernet3d_loss
-    
+from lib.losses.proposal_head_loss import compute_proposal_head_loss
+
 
 class Trainer(object):
     def __init__(
@@ -56,7 +57,9 @@ class Trainer(object):
             )
             self.lr_scheduler.last_epoch = self.epoch - 1
 
-        self.gpu_ids = list(map(int, cfg["gpu_ids"].split(",")))
+        self.gpu_ids = [
+            0,
+        ]  # list(map(int, cfg["gpu_ids"].split(",")))
         self.model = torch.nn.DataParallel(model, device_ids=self.gpu_ids).to(
             self.device
         )
@@ -110,16 +113,33 @@ class Trainer(object):
             rgb, hha = inputs
             rgb = rgb.to(self.device)
             hha = hha.to(self.device)
-            
             for key in targets.keys():
                 targets[key] = targets[key].to(self.device)
+            proposals_2d = targets["2d_bbox"]
+            ## change b,N,5 to N,6 st first column is the index of b
+            b = proposals_2d.shape[0]
+            n = proposals_2d.shape[1]
+            b_indices = torch.arange(b).view(b, 1, 1).expand(b, n, 1).to(self.device)
+
+            # Concatenate the b_indices tensor with the original tensor along the last dimension
+            processed_tensor = torch.cat((b_indices, proposals_2d), dim=-1)
+
+            # Reshape the processed tensor to (b*n, 6)
+            processed_tensor = processed_tensor.view(b * n, 6)
+            ## remove second column from processed_tensor
+            proposals_2d = processed_tensor[:, [0, 2, 3, 4, 5]]
+            targets["2d_box"] = processed_tensor
 
             # train one batch
             self.optimizer.zero_grad()
-            outputs = self.model(rgb, hha)
-            print(outputs.shape)
-            breakpoint()
-            total_loss, stats_batch = compute_centernet3d_loss(outputs, targets)
+            outputs, (dim, rot_cls, rot_reg, loc) = self.model(
+                rgb, hha, proposals_2d.type(torch.float32).to(self.device)
+            )
+            loss_centernet, stats_batch = compute_centernet3d_loss(outputs, targets)
+            loss_rcnn = compute_proposal_head_loss(
+                (dim, rot_cls, rot_reg, loc), targets
+            )
+            total_loss = loss_centernet + loss_rcnn
             total_loss.backward()
             self.optimizer.step()
 

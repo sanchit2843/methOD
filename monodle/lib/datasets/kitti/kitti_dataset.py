@@ -231,6 +231,7 @@ class KITTI_Dataset(data.Dataset):
         mask_3d = np.zeros((self.max_objs), dtype=np.uint8)
         object_num = len(objects) if len(objects) < self.max_objs else self.max_objs
         localization_3d = np.zeros((self.max_objs, 3), dtype=np.float32)
+        boxes_2d = np.zeros((self.max_objs, 4), dtype=np.float32)
 
         for i in range(object_num):
             # filter objects by writelist
@@ -254,6 +255,7 @@ class KITTI_Dataset(data.Dataset):
             bbox_2d[2:] = affine_transform(bbox_2d[2:], trans)
             # modify the 2d bbox according to pre-compute downsample ratio
             bbox_2d[:] /= self.downsample
+            boxes_2d[i] = bbox_2d
 
             # process 3d bbox & get 3d center
             center_2d = np.array(
@@ -328,24 +330,34 @@ class KITTI_Dataset(data.Dataset):
 
         # collect return data
         inputs = (img, hha)
-        # bbox_2d_yolov8file = open(
-        #     os.path.join(self.root_dir, "2d_boxes", "%06d.txt" % index),
-        #     "r",
-        # )
+        bbox_2d_yolov8file = open(
+            os.path.join(self.data_dir, "labels_without_dont_care", "%06d.txt" % index),
+            "r",
+        )
 
-        # ## convert this in same coordinate system as image
-        # bbox_2d = []
-        # for i in bbox_2d_yolov8file.readlines():
-        #     bbox = i.split(" ")[1:]
-        #     bbox = [float(j) for j in bbox]
-        #     bbox[0] = bbox[0] * img_size[0]
-        #     bbox[1] = bbox[1] * img_size[1]
-        #     bbox[2] = bbox[2] * img_size[0]
-        #     bbox[3] = bbox[3] * img_size[1]
-        #     bbox = [int(j) for j in bbox]
-        #     bbox_2d.append(torch.from_numpy(np.array(bbox)))
-        # bbox_2d = torch.stack(bbox_2d)
+        ## convert this in same coordinate system as image
+        bbox_2d_pred = []
+        for i in bbox_2d_yolov8file.readlines():
+            bbox = i.split(" ")[1:]
+            cls = int(i.split(" ")[0])
+            bbox = [float(j) for j in bbox]
+            bbox[0] = bbox[0] * img_size[0]
+            bbox[1] = bbox[1] * img_size[1]
+            bbox[2] = bbox[2] * img_size[0]
+            bbox[3] = bbox[3] * img_size[1]
+            bbox = [int(j) for j in bbox]
+            ## affine transform the bbox
+            bbox[:2] = affine_transform(bbox[:2], trans)
+            bbox[2:] = affine_transform(bbox[2:], trans)
+            bbox = [cls] + bbox
+            bbox_2d_pred.append(torch.from_numpy(np.array(bbox)))
+        bbox_2d_pred = torch.stack(bbox_2d_pred)
+        bbox_2d_yolov8file.close()
 
+        ## bbox_2d_pred map to pad to 50
+        bbox_2d_pred = torch.cat(
+            [bbox_2d_pred, torch.zeros(50 - bbox_2d_pred.shape[0], 5)], dim=0
+        )
         # bbox_2d_yolov8file.close()
         ## load the bboxes for this image.
         targets = {
@@ -361,8 +373,9 @@ class KITTI_Dataset(data.Dataset):
             "heading_res": heading_res,
             "mask_2d": mask_2d,
             "mask_3d": mask_3d,
-            "2d_bbox": bbox_2d,
+            "2d_bbox": bbox_2d_pred,
             "3d_location": localization_3d,
+            "gt_2d_bbox": boxes_2d,
         }
         info = {
             "img_id": index,
