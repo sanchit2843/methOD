@@ -13,6 +13,7 @@ from lib.datasets.kitti.kitti_utils import affine_transform
 from lib.datasets.kitti.kitti_eval_python.eval import get_official_eval_result
 from lib.datasets.kitti.kitti_eval_python.eval import get_distance_eval_result
 import lib.datasets.kitti.kitti_eval_python.kitti_common as kitti
+import torch
 
 
 class KITTI_Dataset(data.Dataset):
@@ -20,7 +21,7 @@ class KITTI_Dataset(data.Dataset):
         # basic configuration
         self.root_dir = cfg.get(
             "root_dir",
-            "/home/hice1/stanwar8/scratch/KITTI_multi",
+            "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/KITTI",
         )
         self.split = split
         self.num_classes = 3
@@ -45,6 +46,7 @@ class KITTI_Dataset(data.Dataset):
         # data split loading
         assert self.split in ["train", "val", "trainval", "test"]
         self.split_file = os.path.join(self.root_dir, "ImageSets", self.split + ".txt")
+
         self.idx_list = [x.strip() for x in open(self.split_file).readlines()]
 
         # path configuration
@@ -118,6 +120,7 @@ class KITTI_Dataset(data.Dataset):
         #  ============================   get inputs   ===========================
         index = int(self.idx_list[item])  # index mapping, get real data id
         # image loading
+
         img = self.get_image(index, self.rgb_dir)
         hha = self.get_image(index, self.hha_dir)
         img_size = np.array(img.size)
@@ -155,14 +158,14 @@ class KITTI_Dataset(data.Dataset):
             data=tuple(trans_inv.reshape(-1).tolist()),
             resample=Image.BILINEAR,
         )
-        
+
         hha = hha.transform(
             tuple(self.resolution.tolist()),
             method=Image.AFFINE,
             data=tuple(trans_inv.reshape(-1).tolist()),
             resample=Image.BILINEAR,
         )
-        
+
         # image encoding
         img = np.array(img).astype(np.float32) / 255.0
         img = (img - self.mean) / self.std
@@ -170,7 +173,7 @@ class KITTI_Dataset(data.Dataset):
         hha = np.array(hha).astype(np.float32) / 255.0
         hha = (hha - self.mean) / self.std
         hha = hha.transpose(2, 0, 1)  # C * H * W
-        
+
         info = {
             "img_id": index,
             "img_size": img_size,
@@ -227,6 +230,8 @@ class KITTI_Dataset(data.Dataset):
         mask_2d = np.zeros((self.max_objs), dtype=np.uint8)
         mask_3d = np.zeros((self.max_objs), dtype=np.uint8)
         object_num = len(objects) if len(objects) < self.max_objs else self.max_objs
+        localization_3d = np.zeros((self.max_objs, 3), dtype=np.float32)
+
         for i in range(object_num):
             # filter objects by writelist
             if objects[i].cls_type not in self.writelist:
@@ -261,14 +266,19 @@ class KITTI_Dataset(data.Dataset):
                 0,
             ]  # real 3D center in 3D space
             center_3d = center_3d.reshape(-1, 3)  # shape adjustment (N, 3)
+            center_3d_z = center_3d[:, 2].copy()
             center_3d, _ = calib.rect_to_img(
                 center_3d
             )  # project 3D center to image plane
+
             center_3d = center_3d[0]  # shape adjustment
             if random_flip_flag:  # random flip for center3d
                 center_3d[0] = img_size[0] - center_3d[0]
             center_3d = affine_transform(center_3d.reshape(-1), trans)
             center_3d /= self.downsample
+            localization_3d[i, 2] = center_3d_z
+            center_3d_delta = center_3d - bbox_2d[:2]
+            localization_3d[i, :2] = center_3d_delta
 
             # generate the center of gaussian heatmap [optional: 3d center or 2d center]
             center_heatmap = (
@@ -318,6 +328,26 @@ class KITTI_Dataset(data.Dataset):
 
         # collect return data
         inputs = (img, hha)
+        # bbox_2d_yolov8file = open(
+        #     os.path.join(self.root_dir, "2d_boxes", "%06d.txt" % index),
+        #     "r",
+        # )
+
+        # ## convert this in same coordinate system as image
+        # bbox_2d = []
+        # for i in bbox_2d_yolov8file.readlines():
+        #     bbox = i.split(" ")[1:]
+        #     bbox = [float(j) for j in bbox]
+        #     bbox[0] = bbox[0] * img_size[0]
+        #     bbox[1] = bbox[1] * img_size[1]
+        #     bbox[2] = bbox[2] * img_size[0]
+        #     bbox[3] = bbox[3] * img_size[1]
+        #     bbox = [int(j) for j in bbox]
+        #     bbox_2d.append(torch.from_numpy(np.array(bbox)))
+        # bbox_2d = torch.stack(bbox_2d)
+
+        # bbox_2d_yolov8file.close()
+        ## load the bboxes for this image.
         targets = {
             "depth": depth,
             "size_2d": size_2d,
@@ -331,6 +361,8 @@ class KITTI_Dataset(data.Dataset):
             "heading_res": heading_res,
             "mask_2d": mask_2d,
             "mask_3d": mask_3d,
+            "2d_bbox": bbox_2d,
+            "3d_location": localization_3d,
         }
         info = {
             "img_id": index,
@@ -344,7 +376,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
 
     cfg = {
-        "root_dir": "../../../data/KITTI",
+        "root_dir": "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/KITTI",
         "random_flip": 0.0,
         "random_crop": 1.0,
         "scale": 0.8,
@@ -356,22 +388,21 @@ if __name__ == "__main__":
     }
     dataset = KITTI_Dataset("train", cfg)
     dataloader = DataLoader(dataset=dataset, batch_size=1)
-    print(dataset.writelist)
 
     for batch_idx, (inputs, targets, info) in enumerate(dataloader):
         # test image
-        img = inputs[0].numpy().transpose(1, 2, 0)
-        img = (img * dataset.std + dataset.mean) * 255
-        img = Image.fromarray(img.astype(np.uint8))
-        img.show()
+        # img = inputs[0].numpy().transpose(1, 2, 0)
+        # img = (img * dataset.std + dataset.mean) * 255
+        # img = Image.fromarray(img.astype(np.uint8))
+        # img.show()
         # print(targets['size_3d'][0][0])
 
         # test heatmap
-        heatmap = targets["heatmap"][0]  # image id
-        heatmap = Image.fromarray(heatmap[0].numpy() * 255)  # cats id
-        heatmap.show()
+        # heatmap = targets["heatmap"][0]  # image id
+        # heatmap = Image.fromarray(heatmap[0].numpy() * 255)  # cats id
+        # heatmap.show()
 
-        break
+        breakpoint()
 
     # print ground truth fisrt
     objects = dataset.get_label(0)
