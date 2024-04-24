@@ -17,7 +17,7 @@ from torchvision.ops import RoIAlign
 
 
 class ROIBox3DHead(nn.Module):
-    def __init__(self, in_size=128 * 7 * 7, hidden_size=512, num_bins=12):
+    def __init__(self, in_size=128 * 7 * 7, hidden_size=512, num_bins=24):
         super().__init__()
         self.fc1 = nn.Linear(in_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
@@ -47,7 +47,6 @@ class ROIBox3DHead(nn.Module):
             nn.init.constant_(l.bias, 0)
 
     def forward(self, features):
-
         features = features.view(features.size(0), -1)
         features = self.relu(self.fc1(features))
         features = self.relu(self.fc2(features))
@@ -55,7 +54,6 @@ class ROIBox3DHead(nn.Module):
         rot_cls = self.rot_cls_predictor(features)
         rot_reg = self.rot_reg_predictor(features)
         loc = self.loc_predictor(features)
-
         return dim, rot_cls, rot_reg, loc
 
 
@@ -130,8 +128,6 @@ class CenterNet3DProposal(nn.Module):
         Returns:
             _type_: _description_
         """
-
-        b = rgb.shape[0]
         feat_rgb = self.backbone_rgb(rgb)
         feat_rgb = self.neck_rgb(feat_rgb[self.first_level :])
         feat_hha = self.backbone_hha(hha)
@@ -140,7 +136,6 @@ class CenterNet3DProposal(nn.Module):
 
         ## TODO: Implement RoIAlign layer
         roi_align_feats = self.roi_align(feat, proposals)
-        ## roi_align_feats: [K, 2*channels, 7, 7]
         ret = {}
         for head in self.heads:
             a = self.__getattr__(head)(feat)
@@ -152,12 +147,7 @@ class CenterNet3DProposal(nn.Module):
         (dim, rot_cls, rot_reg, loc) = self.head_roi_align(roi_align_feats)
         ### return losses if training
 
-        return ret, (
-            dim.view(b, -1, 3),
-            rot_cls.view(b, -1, 12),
-            rot_reg.view(b, -1, 12),
-            loc.view(b, -1, 3),
-        )
+        return ret, (dim, rot_cls, rot_reg, loc)
 
     def fill_fc_weights(self, layers):
         for m in layers.modules():

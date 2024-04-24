@@ -253,8 +253,8 @@ class KITTI_Dataset(data.Dataset):
             bbox_2d = objects[i].box2d.copy()
 
             # add affine transformation for 2d boxes.
-            bbox_2d[:2] = affine_transform(bbox_2d[:2], trans)
-            bbox_2d[2:] = affine_transform(bbox_2d[2:], trans)
+            # bbox_2d[:2] = affine_transform(bbox_2d[:2], trans)
+            # bbox_2d[2:] = affine_transform(bbox_2d[2:], trans)
             # modify the 2d bbox according to pre-compute downsample ratio
             boxes_2d[i] = bbox_2d
 
@@ -340,7 +340,7 @@ class KITTI_Dataset(data.Dataset):
 
         ## convert this in same coordinate system as image
         bbox_2d_pred = []
-
+        print(index)
         for i in bbox_2d_yolov8file.readlines():
             bbox = i.split(" ")[1:]
             cls = int(i.split(" ")[0])
@@ -360,14 +360,12 @@ class KITTI_Dataset(data.Dataset):
             bbox[3] = y_c + h / 2
             bbox = [int(j) for j in bbox]
             ## affine transform the bbox
-            bbox[:2] = affine_transform(bbox[:2], trans)
-            bbox[2:] = affine_transform(bbox[2:], trans)
+            # bbox[:2] = affine_transform(bbox[:2], trans)
+            # bbox[2:] = affine_transform(bbox[2:], trans)
             bbox = [cls] + bbox
             bbox_2d_pred.append(torch.from_numpy(np.array(bbox)))
         bbox_2d_pred = torch.stack(bbox_2d_pred)
         bbox_2d_yolov8file.close()
-        mask_2d_pred = torch.zeros(50)
-        mask_2d_pred[: len(bbox_2d_pred)] = 1
 
         ## bbox_2d_pred map to pad to 50
         bbox_2d_pred = torch.cat(
@@ -392,7 +390,6 @@ class KITTI_Dataset(data.Dataset):
             "2d_bbox": bbox_2d_pred,
             "3d_location": localization_3d,
             "gt_2d_bbox": boxes_2d,
-            "mask_2d_pred": mask_2d_pred,
         }
         info = {
             "img_id": index,

@@ -115,7 +115,9 @@ class Trainer(object):
             hha = hha.to(self.device)
             for key in targets.keys():
                 targets[key] = targets[key].to(self.device)
+
             proposals_2d = targets["2d_bbox"]
+
             ## change b,N,5 to N,6 st first column is the index of b
             b = proposals_2d.shape[0]
             n = proposals_2d.shape[1]
@@ -128,7 +130,6 @@ class Trainer(object):
             processed_tensor = processed_tensor.view(b * n, 6)
             ## remove second column from processed_tensor
             proposals_2d = processed_tensor[:, [0, 2, 3, 4, 5]]
-            targets["2d_box"] = processed_tensor
 
             # train one batch
             self.optimizer.zero_grad()
