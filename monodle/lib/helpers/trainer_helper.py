@@ -109,6 +109,8 @@ class Trainer(object):
             leave=(self.epoch + 1 == self.cfg["max_epoch"]),
             desc="iters",
         )
+        center_loss = 0
+        rcnn_loss = 0
         for batch_idx, (inputs, targets, _) in enumerate(self.train_loader):
             rgb, hha = inputs
             rgb = rgb.to(self.device)
@@ -143,6 +145,15 @@ class Trainer(object):
             total_loss = loss_centernet + loss_rcnn
             total_loss.backward()
             self.optimizer.step()
-
+            center_loss += loss_centernet.item()
+            rcnn_loss += loss_rcnn.item()
             progress_bar.update()
+        print(
+            "Epoch: ",
+            self.epoch,
+            " Center Loss: ",
+            center_loss,
+            " RCNN Loss: ",
+            rcnn_loss,
+        )
         progress_bar.close()
