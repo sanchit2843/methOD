@@ -72,83 +72,80 @@ def compute_proposal_head_loss(preds, target):
     mask_3d = target["mask_3d"].bool().unsqueeze(-1)
     gt_2d = target["gt_2d_bbox"]
 
-    try:
-        matched_indices = match_proposals_with_targets(proposals, gt_2d)
+    matched_indices = match_proposals_with_targets(proposals, gt_2d)
 
-        matched_size_3d = []
-        matched_heading_bin = []
-        matched_heading_res = []
-        matched_localization_3d = []
-        matched_dim = []
-        matched_rot_cls = []
-        matched_rot_reg = []
-        matched_loc = []
+    matched_size_3d = []
+    matched_heading_bin = []
+    matched_heading_res = []
+    matched_localization_3d = []
+    matched_dim = []
+    matched_rot_cls = []
+    matched_rot_reg = []
+    matched_loc = []
 
-        dim_loss = 0
-        rot_loss = 0
-        localization_loss = 0
+    dim_loss = 0
+    rot_loss = 0
+    localization_loss = 0
 
-        for i, indices in enumerate(matched_indices):
-            if torch.all(indices == -1):
+    for i, indices in enumerate(matched_indices):
+        if torch.all(indices == -1):
+            continue
+        current_batch_size_3d = []
+        current_batch_heading_bin = []
+        current_batch_heading_res = []
+        current_batch_localization_3d = []
+        current_batch_dim = []
+        current_batch_rot_cls = []
+        current_batch_rot_reg = []
+        current_batch_loc = []
+
+        for idx, j in enumerate(indices):
+            if j == -1:
                 continue
-            current_batch_size_3d = []
-            current_batch_heading_bin = []
-            current_batch_heading_res = []
-            current_batch_localization_3d = []
-            current_batch_dim = []
-            current_batch_rot_cls = []
-            current_batch_rot_reg = []
-            current_batch_loc = []
+            current_batch_size_3d.append(size_3d[i][j])
+            current_batch_heading_bin.append(heading_bin[i][j])
+            current_batch_heading_res.append(heading_res[i][j])
+            current_batch_localization_3d.append(localization_3d[i][j])
+            current_batch_dim.append(dim[i][idx])
+            current_batch_rot_cls.append(rot_cls[i][idx])
+            current_batch_rot_reg.append(rot_reg[i][idx])
+            current_batch_loc.append(loc[i][idx])
 
-            for idx, j in enumerate(indices):
-                if j == -1:
-                    continue
-                current_batch_size_3d.append(size_3d[i][j])
-                current_batch_heading_bin.append(heading_bin[i][j])
-                current_batch_heading_res.append(heading_res[i][j])
-                current_batch_localization_3d.append(localization_3d[i][j])
-                current_batch_dim.append(dim[i][idx])
-                current_batch_rot_cls.append(rot_cls[i][idx])
-                current_batch_rot_reg.append(rot_reg[i][idx])
-                current_batch_loc.append(loc[i][idx])
-            dim_loss += dim_aware_l1_loss(
-                torch.stack(current_batch_dim),
-                torch.stack(current_batch_size_3d),
-                torch.stack(current_batch_size_3d),
-            )
+        dim_loss += smooth_l1_loss(
+            torch.stack(current_batch_dim), torch.stack(current_batch_size_3d)
+        )
 
-            rot_cls_loss = F.cross_entropy(
-                torch.stack(current_batch_rot_cls),
-                torch.stack(current_batch_heading_bin).view(-1),
-                reduction="mean",
+        rot_cls_loss = F.cross_entropy(
+            torch.stack(current_batch_rot_cls),
+            torch.stack(current_batch_heading_bin).view(-1),
+            reduction="mean",
+        )
+        cls_one_hot = (
+            torch.zeros(torch.stack(current_batch_heading_bin).shape[0], 12)
+            .cuda()
+            .scatter_(
+                dim=1,
+                index=torch.stack(current_batch_heading_bin).view(-1, 1),
+                value=1,
             )
-            cls_one_hot = (
-                torch.zeros(torch.stack(current_batch_heading_bin).shape[0], 12)
-                .cuda()
-                .scatter_(
-                    dim=1,
-                    index=torch.stack(current_batch_heading_bin).view(-1, 1),
-                    value=1,
-                )
-            )
-            current_batch_rot_reg = torch.sum(
-                torch.stack(current_batch_rot_reg) * cls_one_hot, 1
-            )
+        )
+        current_batch_rot_reg = torch.sum(
+            torch.stack(current_batch_rot_reg) * cls_one_hot, 1
+        )
 
-            rot_reg_loss = F.l1_loss(
-                current_batch_rot_reg, torch.stack(current_batch_heading_res).view(-1)
-            )
+        rot_reg_loss = F.l1_loss(
+            current_batch_rot_reg, torch.stack(current_batch_heading_res).view(-1)
+        )
 
-            rot_loss += rot_cls_loss + rot_reg_loss
-            localization_loss += smooth_l1_loss(
-                torch.stack(current_batch_loc),
-                torch.stack(current_batch_localization_3d),
-            )
-    except:
-        print("Error in compute_proposal_head_loss")
-        breakpoint()
+        rot_loss += rot_cls_loss + rot_reg_loss
+        localization_loss += smooth_l1_loss(
+            torch.stack(current_batch_loc),
+            torch.stack(current_batch_localization_3d),
+        )
+    if dim_loss + rot_loss + localization_loss == 0:
+        return torch.tensor(0.0).cuda()
     total_loss = dim_loss + rot_loss + localization_loss
-    return total_loss / len(matched_indices)
+    return total_loss  # / len(matched_indices)
 
     # matched_size_3d = torch.cat(matched_size_3d)
     # matched_heading_bin = torch.cat(matched_heading_bin)

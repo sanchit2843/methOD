@@ -89,6 +89,7 @@ def main():
         warmup_lr_scheduler=warmup_lr_scheduler,
         logger=logger,
     )
+
     trainer.train()
 
     logger.info("###################  Evaluation  ##################")
