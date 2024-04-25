@@ -21,7 +21,7 @@ class KITTI_Dataset(data.Dataset):
         # basic configuration
         self.root_dir = cfg.get(
             "root_dir",
-            "/home/sanchit/Workspace/courses/Gatech/Deep learning/Final_Project/KITTI",
+            "/home/hice1/stanwar8/scratch/KITTI_multi/object",
         )
         self.split = split
         self.num_classes = 3
