@@ -4,7 +4,7 @@ import tqdm
 import torch
 
 from lib.helpers.save_helper import load_checkpoint
-from lib.helpers.decode_helper import extract_dets_from_outputs
+from lib.helpers.decode_helper import extract_dets_from_outputs, extract_dets_from_rpn
 from lib.helpers.decode_helper import decode_detections
 
 
@@ -28,14 +28,14 @@ class Tester(object):
 
         # test a single checkpoint
         if self.cfg["mode"] == "single":
-            assert os.path.exists(self.cfg["checkpoint"])
-            load_checkpoint(
-                model=self.model,
-                optimizer=None,
-                filename=self.cfg["checkpoint"],
-                map_location=self.device,
-                logger=self.logger,
-            )
+            # assert os.path.exists(self.cfg["checkpoint"])
+            # load_checkpoint(
+            #     model=self.model,
+            #     optimizer=None,
+            #     filename=self.cfg["checkpoint"],
+            #     map_location=self.device,
+            #     logger=self.logger,
+            # )
             self.model.to(self.device)
             self.inference()
             self.evaluate()
@@ -64,6 +64,8 @@ class Tester(object):
                 self.evaluate()
 
     def inference(self):
+
+        ## TODO: inference helper for rpn network. Apply NMS to the output of the network with merged predictions from two heads.
         torch.set_grad_enabled(False)
         self.model.eval()
 
@@ -71,13 +73,32 @@ class Tester(object):
         progress_bar = tqdm.tqdm(
             total=len(self.dataloader), leave=True, desc="Evaluation Progress"
         )
-        for batch_idx, (inputs, _, info) in enumerate(self.dataloader):
+        for batch_idx, (inputs, targets, info) in enumerate(self.dataloader):
             # load evaluation data and move data to GPU.
             rgb, hha = inputs
             rgb = rgb.to(self.device)
             hha = hha.to(self.device)
+            for key in targets.keys():
+                targets[key] = targets[key].to(self.device)
 
-            outputs = self.model(rgb, hha)
+            proposals_2d = targets["2d_bbox"]
+
+            ## change b,N,5 to N,6 st first column is the index of b
+            b = proposals_2d.shape[0]
+            n = proposals_2d.shape[1]
+            b_indices = torch.arange(b).view(b, 1, 1).expand(b, n, 1).to(self.device)
+
+            # Concatenate the b_indices tensor with the original tensor along the last dimension
+            processed_tensor = torch.cat((b_indices, proposals_2d), dim=-1)
+
+            # Reshape the processed tensor to (b*n, 6)
+            processed_tensor = processed_tensor.view(b * n, 6)
+            ## remove second column from processed_tensor
+            proposals_2d = processed_tensor[:, [0, 2, 3, 4, 5]]
+
+            outputs, (dim, rot_cls, rot_reg, loc) = self.model(
+                rgb, hha, proposals_2d.type(torch.float32).to(self.device)
+            )
             dets = extract_dets_from_outputs(outputs=outputs, K=self.max_objs)
             dets = dets.detach().cpu().numpy()
 
@@ -94,6 +115,23 @@ class Tester(object):
                 cls_mean_size=cls_mean_size,
                 threshold=self.cfg.get("threshold", 0.2),
             )
+
+            dim = dim.detach().cpu().numpy()
+            rot_cls = rot_cls.detach().cpu().numpy()
+            rot_reg = rot_reg.detach().cpu().numpy()
+            loc = loc.detach().cpu().numpy()
+
+            dets_rcnn = extract_dets_from_rpn(
+                dim,
+                rot_cls,
+                rot_reg,
+                loc,
+                targets["2d_bbox"],
+                info,
+                calibs,
+                self.dataloader.dataset.cls_mean_size,
+            )
+            
             results.update(dets)
             progress_bar.update()
 

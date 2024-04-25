@@ -284,7 +284,7 @@ class KITTI_Dataset(data.Dataset):
             localization_3d[i, 2] = center_3d_z
             center_3d_delta = center_3d - bbox_2d[:2]
             localization_3d[i, :2] = center_3d_delta
-
+    
             # generate the center of gaussian heatmap [optional: 3d center or 2d center]
             center_heatmap = (
                 center_3d.astype(np.int32)

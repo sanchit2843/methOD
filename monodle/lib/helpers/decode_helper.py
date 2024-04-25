@@ -5,13 +5,13 @@ from lib.datasets.utils import class2angle
 
 
 def decode_detections(dets, info, calibs, cls_mean_size, threshold):
-    '''
+    """
     NOTE: THIS IS A NUMPY FUNCTION
     input: dets, numpy array, shape in [batch x max_dets x dim]
     input: img_info, dict, necessary information of input images
     input: calibs, corresponding calibs for the input batch
     output:
-    '''
+    """
     results = {}
     for i in range(dets.shape[0]):  # batch
         preds = []
@@ -22,11 +22,11 @@ def decode_detections(dets, info, calibs, cls_mean_size, threshold):
                 continue
 
             # 2d bboxs decoding
-            x = dets[i, j, 2] * info['bbox_downsample_ratio'][i][0]
-            y = dets[i, j, 3] * info['bbox_downsample_ratio'][i][1]
-            w = dets[i, j, 4] * info['bbox_downsample_ratio'][i][0]
-            h = dets[i, j, 5] * info['bbox_downsample_ratio'][i][1]
-            bbox = [x-w/2, y-h/2, x+w/2, y+h/2]
+            x = dets[i, j, 2] * info["bbox_downsample_ratio"][i][0]
+            y = dets[i, j, 3] * info["bbox_downsample_ratio"][i][1]
+            w = dets[i, j, 4] * info["bbox_downsample_ratio"][i][0]
+            h = dets[i, j, 5] * info["bbox_downsample_ratio"][i][1]
+            bbox = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
 
             # 3d bboxs decoding
             # depth decoding
@@ -37,8 +37,8 @@ def decode_detections(dets, info, calibs, cls_mean_size, threshold):
             dimensions += cls_mean_size[int(cls_id)]
 
             # positions decoding
-            x3d = dets[i, j, 34] * info['bbox_downsample_ratio'][i][0]
-            y3d = dets[i, j, 35] * info['bbox_downsample_ratio'][i][1]
+            x3d = dets[i, j, 34] * info["bbox_downsample_ratio"][i][0]
+            y3d = dets[i, j, 35] * info["bbox_downsample_ratio"][i][1]
             locations = calibs[i].img_to_rect(x3d, y3d, depth).reshape(-1)
             locations[1] += dimensions[0] / 2
 
@@ -62,27 +62,83 @@ def decode_detections(dets, info, calibs, cls_mean_size, threshold):
             # bbox, _ = calibs[i].corners3d_to_img_boxes(corners3d.reshape(1, 8, 3))
             # bbox = bbox.reshape(-1).tolist()
 
-            preds.append([cls_id, alpha] + bbox + dimensions.tolist() + locations.tolist() + [ry, score])
-        results[info['img_id'][i]] = preds
+            preds.append(
+                [cls_id, alpha]
+                + bbox
+                + dimensions.tolist()
+                + locations.tolist()
+                + [ry, score]
+            )
+        results[info["img_id"][i]] = preds
+    return results
+
+
+def extract_dets_from_rpn(
+    dim, rot_cls, rot_reg, loc, proposals_2d, info, calibs, cls_mean_size
+):
+    """
+    Args:
+        dim: tensor shaped in B * 3
+        rot_cls: tensor shaped in B * 12
+        rot_reg: tensor shaped in B * 12
+        loc: tensor shaped in B * 3
+        proposals_2d: tensor shaped B * 6, this is to get class for 3d head.
+    Returns:
+    """
+    breakpoint()
+    results = {}
+    for i in range(dim.shape[0]):
+        ## iterate over batch
+        detections_per_img = []
+
+        for j in range(dim.shape[1]):
+            ## iterate over max detections
+            # if sum of all detections is 0, then break
+            if np.sum(dim[i, j]) == 0:
+                break
+            cls_id = proposals_2d[i][j, 0].int().item()
+            ## 2d boxes
+            x, y, w, h = proposals_2d[i][j, 1:].tolist()
+            bbox = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+
+            ## decode x3d and y3d
+            depth = loc[i, j, 2] * info["bbox_downsample_ratio"][i][0]
+            x3d = loc[i, j, 0] * info["bbox_downsample_ratio"][i][0] + x
+            y3d = loc[i, j, 1] * info["bbox_downsample_ratio"][i][1] + y
+            locations = calibs[i].img_to_rect(x3d, y3d, depth).reshape(-1)
+
+            ## decode dimensions:
+            dimensions = dim[i, j].tolist()
+            dimensions = [dim + cls_mean_size[cls_id] for dim in dimensions]
+
+            ## decode heading
+            # heading = torch.cat([rot_cls[i, j], rot_reg[i, j]], dim=0)
+            heading = np.concatenate([rot_cls[i, j], rot_reg[i, j]], axis=0)
+            alpha = get_heading_angle(heading)
+            ry = calibs[i].alpha2ry(alpha, x3d)
+            detections_per_img.append(
+                [cls_id, alpha] + bbox + dimensions + locations.tolist() + [ry]
+            )
+        results[info["img_id"][i]] = detections_per_img
     return results
 
 
 def extract_dets_from_outputs(outputs, K=50):
     # get src outputs
-    heatmap = outputs['heatmap']
-    heading = outputs['heading']
-    depth = outputs['depth'][:, 0:1, :, :]
-    sigma = outputs['depth'][:, 1:2, :, :]
-    size_3d = outputs['size_3d']
-    offset_3d = outputs['offset_3d']
-    size_2d = outputs['size_2d']
-    offset_2d = outputs['offset_2d']
+    heatmap = outputs["heatmap"]
+    heading = outputs["heading"]
+    depth = outputs["depth"][:, 0:1, :, :]
+    sigma = outputs["depth"][:, 1:2, :, :]
+    size_3d = outputs["size_3d"]
+    offset_3d = outputs["offset_3d"]
+    size_2d = outputs["size_2d"]
+    offset_2d = outputs["offset_2d"]
 
-    heatmap= torch.clamp(heatmap.sigmoid_(), min=1e-4, max=1 - 1e-4)
-    depth = 1. / (depth.sigmoid() + 1e-6) - 1.
+    heatmap = torch.clamp(heatmap.sigmoid_(), min=1e-4, max=1 - 1e-4)
+    depth = 1.0 / (depth.sigmoid() + 1e-6) - 1.0
     sigma = torch.exp(-sigma)
 
-    batch, channel, height, width = heatmap.size() # get shape
+    batch, channel, height, width = heatmap.size()  # get shape
 
     # perform nms on heatmaps
     heatmap = _nms(heatmap)
@@ -118,10 +174,24 @@ def extract_dets_from_outputs(outputs, K=50):
     size_2d = _transpose_and_gather_feat(size_2d, inds)
     size_2d = size_2d.view(batch, K, 2)
 
-    detections = torch.cat([cls_ids, scores, xs2d, ys2d, size_2d, depth, heading, size_3d, xs3d, ys3d, sigma], dim=2)
+    detections = torch.cat(
+        [
+            cls_ids,
+            scores,
+            xs2d,
+            ys2d,
+            size_2d,
+            depth,
+            heading,
+            size_3d,
+            xs3d,
+            ys3d,
+            sigma,
+        ],
+        dim=2,
+    )
 
     return detections
-
 
 
 ############### auxiliary function ############
@@ -129,7 +199,9 @@ def extract_dets_from_outputs(outputs, K=50):
 
 def _nms(heatmap, kernel=3):
     padding = (kernel - 1) // 2
-    heatmapmax = nn.functional.max_pool2d(heatmap, (kernel, kernel), stride=1, padding=padding)
+    heatmapmax = nn.functional.max_pool2d(
+        heatmap, (kernel, kernel), stride=1, padding=padding
+    )
     keep = (heatmapmax == heatmap).float()
     return heatmap * keep
 
@@ -155,16 +227,18 @@ def _topk(heatmap, K=50):
 
 
 def _gather_feat(feat, ind, mask=None):
-    '''
+    """
     Args:
         feat: tensor shaped in B * (H*W) * C
         ind:  tensor shaped in B * K (default: 50)
         mask: tensor shaped in B * K (default: 50)
 
     Returns: tensor shaped in B * K or B * sum(mask)
-    '''
-    dim  = feat.size(2)  # get channel dim
-    ind  = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)  # B*len(ind) --> B*len(ind)*1 --> B*len(ind)*C
+    """
+    dim = feat.size(2)  # get channel dim
+    ind = ind.unsqueeze(2).expand(
+        ind.size(0), ind.size(1), dim
+    )  # B*len(ind) --> B*len(ind)*1 --> B*len(ind)*C
     feat = feat.gather(1, ind)  # B*(HW)*C ---> B*K*C
     if mask is not None:
         mask = mask.unsqueeze(2).expand_as(feat)  # B*50 ---> B*K*1 --> B*K*C
@@ -174,15 +248,15 @@ def _gather_feat(feat, ind, mask=None):
 
 
 def _transpose_and_gather_feat(feat, ind):
-    '''
+    """
     Args:
         feat: feature maps shaped in B * C * H * W
         ind: indices tensor shaped in B * K
     Returns:
-    '''
-    feat = feat.permute(0, 2, 3, 1).contiguous()   # B * C * H * W ---> B * H * W * C
-    feat = feat.view(feat.size(0), -1, feat.size(3))   # B * H * W * C ---> B * (H*W) * C
-    feat = _gather_feat(feat, ind)     # B * len(ind) * C
+    """
+    feat = feat.permute(0, 2, 3, 1).contiguous()  # B * C * H * W ---> B * H * W * C
+    feat = feat.view(feat.size(0), -1, feat.size(3))  # B * H * W * C ---> B * (H*W) * C
+    feat = _gather_feat(feat, ind)  # B * len(ind) * C
     return feat
 
 
@@ -193,11 +267,10 @@ def get_heading_angle(heading):
     return class2angle(cls, res, to_label_format=True)
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     ## testing
     from lib.datasets.kitti.kitti_dataset import KITTI_Dataset
     from torch.utils.data import DataLoader
 
-    dataset = KITTI_Dataset('../../data', 'train')
+    dataset = KITTI_Dataset("../../data", "train")
     dataloader = DataLoader(dataset=dataset, batch_size=2)

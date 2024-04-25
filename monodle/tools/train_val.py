@@ -65,6 +65,7 @@ def main():
         tester = Tester(
             cfg=cfg["tester"], model=model, dataloader=test_loader, logger=logger
         )
+
         tester.test()
         return
 
