@@ -28,14 +28,14 @@ class Tester(object):
 
         # test a single checkpoint
         if self.cfg["mode"] == "single":
-            assert os.path.exists(self.cfg["checkpoint"])
-            load_checkpoint(
-                model=self.model,
-                optimizer=None,
-                filename=self.cfg["checkpoint"],
-                map_location=self.device,
-                logger=self.logger,
-            )
+            # assert os.path.exists(self.cfg["checkpoint"])
+            # load_checkpoint(
+            #     model=self.model,
+            #     optimizer=None,
+            #     filename=self.cfg["checkpoint"],
+            #     map_location=self.device,
+            #     logger=self.logger,
+            # )
             self.model.to(self.device)
             self.inference()
             self.evaluate()

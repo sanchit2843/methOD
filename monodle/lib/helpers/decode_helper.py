@@ -68,6 +68,7 @@ def decode_detections(dets, info, calibs, cls_mean_size, threshold):
                 + locations.tolist()
                 + [ry, score]
             )
+            breakpoint()
         results[info["img_id"][i]] = preds
     return results
 
@@ -97,13 +98,16 @@ def extract_dets_from_rpn(
                 break
             cls_id = int(proposals_2d[i][j, 0])
             ## 2d boxes
-            x, y, w, h = proposals_2d[i][j, 1:].tolist()
-            bbox = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+            x1, y1, x2, y2 = proposals_2d[i][j, 1:].tolist()
+            # bbox = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+            bbox = [x1, y1, x2, y2]
+            x_c = (x1 + x2) / 2
+            y_c = (y1 + y2) / 2
 
             ## decode x3d and y3d
             depth = loc[i, j, 2] * info["bbox_downsample_ratio"][i][0]
-            x3d = loc[i, j, 0] * info["bbox_downsample_ratio"][i][0] + x
-            y3d = loc[i, j, 1] * info["bbox_downsample_ratio"][i][1] + y
+            x3d = loc[i, j, 0] * info["bbox_downsample_ratio"][i][0] + x_c
+            y3d = loc[i, j, 1] * info["bbox_downsample_ratio"][i][1] + y_c
             locations = calibs[i].img_to_rect(x3d, y3d, depth).reshape(-1)
 
             ## decode dimensions:
@@ -122,6 +126,7 @@ def extract_dets_from_rpn(
                 + locations.tolist()
                 + [ry, 1.0]
             )
+            breakpoint()
         results[info["img_id"][i]] = detections_per_img
     return results
 
