@@ -21,7 +21,7 @@ class KITTI_Dataset(data.Dataset):
         # basic configuration
         self.root_dir = cfg.get(
             "root_dir",
-            "/home/hice1/stanwar8/scratch/KITTI_multi/object",
+            "/home/hice1/stanwar8/scratch/KITTI_multi",
         )
         self.split = split
         self.num_classes = 3
@@ -60,8 +60,8 @@ class KITTI_Dataset(data.Dataset):
         self.label_dir = os.path.join(self.data_dir, "label_2")
 
         # data augmentation configuration
-        # self.data_augmentation = True if split in ["train", "trainval"] else False
-        self.data_augmentation = False
+        self.data_augmentation = True if split in ["train", "trainval"] else False
+        # self.data_augmentation = False
         self.random_flip = cfg.get("random_flip", 0.5)
         self.random_crop = cfg.get("random_crop", 0.5)
         self.scale = cfg.get("scale", 0.4)
@@ -284,7 +284,7 @@ class KITTI_Dataset(data.Dataset):
             localization_3d[i, 2] = center_3d_z
             center_3d_delta = center_3d - bbox_2d[:2]
             localization_3d[i, :2] = center_3d_delta
-    
+
             # generate the center of gaussian heatmap [optional: 3d center or 2d center]
             center_heatmap = (
                 center_3d.astype(np.int32)

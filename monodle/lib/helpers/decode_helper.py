@@ -35,7 +35,6 @@ def decode_detections(dets, info, calibs, cls_mean_size, threshold):
             # dimensions decoding
             dimensions = dets[i, j, 31:34]
             dimensions += cls_mean_size[int(cls_id)]
-
             # positions decoding
             x3d = dets[i, j, 34] * info["bbox_downsample_ratio"][i][0]
             y3d = dets[i, j, 35] * info["bbox_downsample_ratio"][i][1]
@@ -85,8 +84,8 @@ def extract_dets_from_rpn(
         proposals_2d: tensor shaped B * 6, this is to get class for 3d head.
     Returns:
     """
-    breakpoint()
     results = {}
+    proposals_2d = proposals_2d.cpu().numpy()
     for i in range(dim.shape[0]):
         ## iterate over batch
         detections_per_img = []
@@ -94,9 +93,9 @@ def extract_dets_from_rpn(
         for j in range(dim.shape[1]):
             ## iterate over max detections
             # if sum of all detections is 0, then break
-            if np.sum(dim[i, j]) == 0:
+            if np.sum(proposals_2d[i, j]) == 0:
                 break
-            cls_id = proposals_2d[i][j, 0].int().item()
+            cls_id = int(proposals_2d[i][j, 0])
             ## 2d boxes
             x, y, w, h = proposals_2d[i][j, 1:].tolist()
             bbox = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
@@ -108,8 +107,8 @@ def extract_dets_from_rpn(
             locations = calibs[i].img_to_rect(x3d, y3d, depth).reshape(-1)
 
             ## decode dimensions:
-            dimensions = dim[i, j].tolist()
-            dimensions = [dim + cls_mean_size[cls_id] for dim in dimensions]
+            dimensions = dim[i, j]
+            dimensions += cls_mean_size[cls_id]
 
             ## decode heading
             # heading = torch.cat([rot_cls[i, j], rot_reg[i, j]], dim=0)
@@ -117,7 +116,11 @@ def extract_dets_from_rpn(
             alpha = get_heading_angle(heading)
             ry = calibs[i].alpha2ry(alpha, x3d)
             detections_per_img.append(
-                [cls_id, alpha] + bbox + dimensions + locations.tolist() + [ry]
+                [cls_id, alpha]
+                + bbox
+                + dimensions.tolist()
+                + locations.tolist()
+                + [ry, 1.0]
             )
         results[info["img_id"][i]] = detections_per_img
     return results

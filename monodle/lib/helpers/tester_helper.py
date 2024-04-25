@@ -28,14 +28,14 @@ class Tester(object):
 
         # test a single checkpoint
         if self.cfg["mode"] == "single":
-            assert os.path.exists(self.cfg["checkpoint"])
-            load_checkpoint(
-                model=self.model,
-                optimizer=None,
-                filename=self.cfg["checkpoint"],
-                map_location=self.device,
-                logger=self.logger,
-            )
+            # assert os.path.exists(self.cfg["checkpoint"])
+            # load_checkpoint(
+            #     model=self.model,
+            #     optimizer=None,
+            #     filename=self.cfg["checkpoint"],
+            #     map_location=self.device,
+            #     logger=self.logger,
+            # )
             self.model.to(self.device)
             self.inference()
             self.evaluate()
@@ -99,6 +99,7 @@ class Tester(object):
             outputs, (dim, rot_cls, rot_reg, loc) = self.model(
                 rgb, hha, proposals_2d.type(torch.float32).to(self.device)
             )
+
             dets = extract_dets_from_outputs(outputs=outputs, K=self.max_objs)
             dets = dets.detach().cpu().numpy()
 
@@ -132,9 +133,9 @@ class Tester(object):
                 self.dataloader.dataset.cls_mean_size,
             )
 
-            results.update(dets)
+            results.update(dets_rcnn)
             progress_bar.update()
-
+            break
         progress_bar.close()
 
         # save the result for evaluation.
