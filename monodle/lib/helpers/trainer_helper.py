@@ -58,7 +58,7 @@ class Trainer(object):
             self.lr_scheduler.last_epoch = self.epoch - 1
 
         self.gpu_ids = [
-            0,
+            0,1
         ]  # list(map(int, cfg["gpu_ids"].split(",")))
         self.model = torch.nn.DataParallel(model, device_ids=self.gpu_ids).to(
             self.device
@@ -148,12 +148,7 @@ class Trainer(object):
             center_loss += loss_centernet.item()
             rcnn_loss += loss_rcnn.item()
             progress_bar.update()
-        print(
-            "Epoch: ",
-            self.epoch,
-            " Center Loss: ",
-            center_loss,
-            " RCNN Loss: ",
-            rcnn_loss,
-        )
+        with open("losses.txt", "a") as f:
+            f.write(
+                f"Epoch {self.epoch} Center Loss: {center_loss / len(self.train_loader)} RCNN Loss: {rcnn_loss / len(self.train_loader)}\n")
         progress_bar.close()
