@@ -5,27 +5,16 @@ This repository contains code for conducting experiments on 3D object detection 
 
 ---
 
-### Prerequisites
-
-- Python 3.x installed on your system.
-- GPU with CUDA support (NVIDIA A40 GPU was used in the original experiment).
-- Git installed to clone the repository.
-- Basic familiarity with command-line interface (CLI) and Python programming.
-
----
-
 ### Repository Structure
 
-- **DAMO-YOLO**: Contains code for the 3D object detection experiment.
 - **Depth2HHA-python**: Code for converting depth images to HHA representation.
 - **UniDepth**: Implementation for depth estimation.
 - **kitti_object_vis**: Visualization tools for KITTI dataset.
 - **monodle**: MonoDepth and YOLOv3 based monocular depth estimation.
-- **yolov8-kitti**: YOLOv8 model for 2D object detection on KITTI dataset.
-- **check_label_format.py**: Python script for checking label format.
-- **visualize_point_cloud.py**: Script to visualize point cloud data.
+- yolov8-kitti: YOLOv8 model for 2D object detection on KITTI dataset.
 - **README.md**: Readme file containing instructions and information about the repository.
-
+- **monodle_multimodal** A fork of monodle folder for training multiple modalities of HHA and RGB
+- **monodle_2dproposal** A fork of monodle with RPN head and support for passing proposals from dataset and to model. 
 ---
 
 ### Experiment Steps
@@ -45,42 +34,47 @@ This repository contains code for conducting experiments on 3D object detection 
 3. **Download KITTI Dataset**:
    - Download the KITTI 3D object detection dataset from [KITTI Website](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and place it in a directory named `data` within each model repository.
 
-4. **Prepare Data**:
+4. ** Extract depth for the dataset:
+   - Run inference of unidepth on RGB images for monocular depth estimation, please edit the paths in script
+   ```bash
+   python UniDepth/kitti_run.py
+   ```
+5. **Prepare Data**:
    - Convert depth images to HHA representation:
      ```bash
      python Depth2HHA-python/depth_to_hha.py
      ```
-   - Convert labels to correct format (if necessary):
-     ```bash
-     python check_label_format.py
-     ```
 
-5. **Train YOLOv8 Model** (2D Object Detection):
-   - Navigate to `yolov8-kitti` directory and follow instructions for training YOLOv8 model on KITTI dataset.
+6. **Train YOLOv8 Model** (2D Object Detection):
+   - Navigate to  directory and follow instructions for training YOLOv8 model on KITTI dataset.
 
-6. **Generate Region Proposals**:
-   - Use the trained YOLOv8 model to generate region proposals.
+7. **Generate Region Proposals**:
+   - Use the trained YOLOv8 model to generate region proposals, they will be saved in text files.
 
-7. **Run 3D Object Detection**:
-   - Navigate to `DAMO-YOLO` directory.
+8. **Run 3D Object Detection**:
+   - For single modality model. 
+   - Navigate to `mono-dle` directory, change the model type to centernet3d in experiments/example/kitti_example.yaml .
+   - Change path to dataset in line 23 of lib/datasets/kitti/kitti_dataset.py 
+   - In case you want to train HHA model, place those images in image_2 folder of the dataset directory other wise keep it RGB. 
    - Train the 3D object detection model:
      ```bash
-     python train.py --data_path path/to/training/data --val_path path/to/validation/data --epochs 140 --lr 0.00125 --lr_decay_steps 90 120 --weight_decay 0.00001 --warmup_epochs 5 --batch_size 32
+     python tools/train_val.py --config experiments/example/kitti_example.yaml
      ```
+   - For training multi modal, please checkout to multimodal branch, or navigate to monodle_multimodal, place rgb in image_rgb folder of the dataset folder and hha in image_hha folder, and change the model type to multi in config file.  
+      ```bash
+      python tools/train_val.py --config experiments/example/kitti_example.yaml
+      ```
+   - For evaluation update checkpoint path in kitti_example.yaml
+      ```bash
+      python tools/train_val.py --config experiments/example/kitti_example.yaml -e
+      ```
+   - For training 2d proposal based network, checkout to 2dproposal branch or navigate to monodle_2dproposal, place the prediction of boxes from yolov8 inference in "labels_without_dont_care" directory and change the model type to yolo. 
+      ```
+      python tools/train_val.py --config experiments/example/kitti_example.yaml
+      ```
 
-8. **Evaluate Results**:
-   - Evaluate the trained model on the validation set:
-     ```bash
-     python evaluate.py --model_path path/to/saved/model --data_path path/to/validation/data
-     ```
-
+10. For point cloud visualizations, you can use the kitti_object_vis/notebook_demo.ipynb
 ---
-
-### Notes
-
-- Experiment parameters such as learning rate, batch size, etc., can be adjusted based on hardware capabilities and experimentation requirements.
-- Ensure proper directory structures and data organization to avoid errors during training and evaluation.
-- Refer to individual module README files for more detailed instructions and information.
 
 ---
 
@@ -96,4 +90,3 @@ This repository contains code for conducting experiments on 3D object detection 
 ---
 
 This README provides a comprehensive guide for setting up and running the experiment. If you encounter any issues or have questions, feel free to refer to the documentation or reach out to the repository maintainers for assistance.
-
