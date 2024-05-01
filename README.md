@@ -17,6 +17,25 @@ This repository contains code for conducting experiments on 3D object detection 
 - **monodle_2dproposal** A fork of monodle with RPN head and support for passing proposals from dataset and to model. 
 ---
 
+
+### Data Preparation
+Please download [KITTI dataset](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and organize the data as follows:
+
+```
+#ROOT
+  |data/
+    |KITTI/
+      |ImageSets/ [already provided in this repo]
+      |object/			
+        |training/
+          |calib/
+          |image_2/
+          |label/
+        |testing/
+          |calib/
+          |image_2/
+```
+
 ### Experiment Steps
 
 1. **Clone Repository**:
