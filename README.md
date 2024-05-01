@@ -43,16 +43,16 @@ This repository contains code for conducting experiments on 3D object detection 
    - Ensure CUDA and CuDNN are properly installed for GPU support.
 
 3. **Download KITTI Dataset**:
-   - Download the KITTI 3D object detection dataset from [KITTI Website](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and place it in a directory named `kitti_dataset`.
+   - Download the KITTI 3D object detection dataset from [KITTI Website](http://www.cvlibs.net/datasets/kitti/eval_object.php?obj_benchmark=3d) and place it in a directory named `data` within each model repository.
 
 4. **Prepare Data**:
    - Convert depth images to HHA representation:
      ```bash
-     python Depth2HHA-python/depth2hha.py --data_path path/to/depth/images --output_path path/to/save/hha/images
+     python Depth2HHA-python/depth_to_hha.py
      ```
    - Convert labels to correct format (if necessary):
      ```bash
-     python check_label_format.py --labels_path path/to/labels
+     python check_label_format.py
      ```
 
 5. **Train YOLOv8 Model** (2D Object Detection):
